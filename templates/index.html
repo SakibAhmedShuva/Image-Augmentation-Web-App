@@ -163,14 +163,37 @@
             margin-bottom: 40px;
         }
 
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
         .section-title {
             font-size: 1.5rem;
             font-weight: 700;
             color: #1f2937;
-            margin-bottom: 20px;
             display: flex;
             align-items: center;
             gap: 12px;
+            margin-bottom: 0; /* Moved to .section-header */
+        }
+
+        .select-all-btn {
+            background: #f3f4f6;
+            color: #374151;
+            border: 1px solid #d1d5db;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .select-all-btn:hover {
+            background: #e5e7eb;
         }
 
         .augmentation-grid {
@@ -460,9 +483,12 @@
             </div>
 
             <div class="augmentation-section">
-                <h2 class="section-title">
-                    ⚡ Select Augmentations
-                </h2>
+                <div class="section-header">
+                    <h2 class="section-title">
+                        ⚡ Select Augmentations
+                    </h2>
+                    <button id="select-all-btn" class="select-all-btn">Select All</button>
+                </div>
                 <div class="augmentation-grid" id="augmentation-grid">
                     <!-- Augmentation cards will be dynamically inserted here -->
                 </div>
@@ -497,6 +523,7 @@
         const fileInput = document.getElementById('file-input');
         const selectedFilesContainer = document.getElementById('selected-files-container');
         const augmentationGrid = document.getElementById('augmentation-grid');
+        const selectAllBtn = document.getElementById('select-all-btn');
         const processBtn = document.getElementById('process-btn');
         const clearBtn = document.getElementById('clear-btn');
         const loadingIndicator = document.getElementById('loading');
@@ -546,6 +573,7 @@
                 `;
                 augmentationGrid.appendChild(card);
             });
+            updateSelectAllButtonText();
         };
 
         const updateSelectedFilesUI = () => {
@@ -653,8 +681,11 @@
                     }
                     card.classList.toggle('selected', checkbox.checked);
                     updateButtonStates();
+                    updateSelectAllButtonText();
                 }
             });
+
+            selectAllBtn.addEventListener('click', toggleSelectAllAugmentations);
 
             selectedFilesContainer.addEventListener('click', (e) => {
                 if (e.target.classList.contains('remove-file')) {
@@ -755,6 +786,32 @@
             processBtn.disabled = !hasFiles || !hasAugmentations;
             clearBtn.disabled = !hasFiles && !hasAugmentations;
         };
+
+        const updateSelectAllButtonText = () => {
+            const allCheckboxes = augmentationGrid.querySelectorAll('input[type="checkbox"]');
+            if (allCheckboxes.length === 0) {
+                selectAllBtn.textContent = 'Select All';
+                return;
+            }
+            const areAllSelected = Array.from(allCheckboxes).every(cb => cb.checked);
+            selectAllBtn.textContent = areAllSelected ? 'Deselect All' : 'Select All';
+        };
+
+        const toggleSelectAllAugmentations = () => {
+            const allCheckboxes = augmentationGrid.querySelectorAll('input[type="checkbox"]');
+            const shouldSelect = !Array.from(allCheckboxes).every(cb => cb.checked);
+
+            allCheckboxes.forEach(checkbox => {
+                checkbox.checked = shouldSelect;
+                const card = checkbox.closest('.augmentation-card');
+                if (card) {
+                    card.classList.toggle('selected', shouldSelect);
+                }
+            });
+            
+            updateButtonStates();
+            updateSelectAllButtonText();
+        };
         
         const getSelectedAugmentations = () => {
             return Array.from(augmentationGrid.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
@@ -787,6 +844,7 @@
             hideError();
             showLoading(false);
             updateButtonStates();
+            updateSelectAllButtonText();
         };
 
         const downloadBase64Image = (base64Data, filename) => {
