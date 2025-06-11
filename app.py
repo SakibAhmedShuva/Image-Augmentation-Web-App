@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file, render_template
+from flask import Flask, request, jsonify, send_file, render_template, after_this_request
 from flask_cors import CORS
 import cv2
 import numpy as np
@@ -161,132 +161,149 @@ def get_available_augmentations():
 @app.route('/api/augment', methods=['POST'])
 def augment_image():
     """Process uploaded image with selected augmentations"""
+    session_folder = None
     try:
-        # Check if image file is present
         if 'image' not in request.files:
             return jsonify({'error': 'No image file provided'}), 400
         
         file = request.files['image']
-        if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
+        if file.filename == '' or not allowed_file(file.filename):
+            return jsonify({'error': 'Invalid file provided'}), 400
         
-        if not allowed_file(file.filename):
-            return jsonify({'error': 'Invalid file type'}), 400
-        
-        # Get selected augmentations
         augmentations = request.form.getlist('augmentations')
         if not augmentations:
             return jsonify({'error': 'No augmentations selected'}), 400
         
-        # Save uploaded file
-        filename = secure_filename(file.filename)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"{timestamp}_{filename}"
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(filepath)
-        
-        # Load image
-        image = cv2.imread(filepath)
-        if image is None:
-            return jsonify({'error': 'Could not read image file'}), 400
-        
-        # Create augmenter with selected augmentations
-        augmenter = ImageAugmenter(augmentations)
-        
-        # Generate augmentations
-        augmented_images = augmenter.create_augmentations(image)
-        
-        # Convert images to base64 for web display
-        results = []
-        original_b64 = image_to_base64(image)
-        
-        for aug_name, aug_image in augmented_images:
-            aug_b64 = image_to_base64(aug_image)
-            results.append({
-                'name': aug_name,
-                'image': aug_b64
-            })
-        
-        # Clean up uploaded file
-        os.remove(filepath)
-        
-        return jsonify({
-            'original': original_b64,
-            'augmented': results
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/batch-augment', methods=['POST'])
-def batch_augment():
-    """Process multiple images and return as downloadable zip"""
-    try:
-        # Check if files are present
-        if 'images' not in request.files:
-            return jsonify({'error': 'No image files provided'}), 400
-        
-        files = request.files.getlist('images')
-        if not files or all(f.filename == '' for f in files):
-            return jsonify({'error': 'No files selected'}), 400
-        
-        # Get selected augmentations
-        augmentations = request.form.getlist('augmentations')
-        if not augmentations:
-            return jsonify({'error': 'No augmentations selected'}), 400
-        
-        # Create session folder
+        # Create a session folder for this request
         session_id = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
         session_folder = os.path.join(SESSIONS_FOLDER, session_id)
         os.makedirs(session_folder, exist_ok=True)
         
-        # Save uploaded files
-        uploaded_files = []
-        for file in files:
-            if file and allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-                filepath = os.path.join(session_folder, filename)
-                file.save(filepath)
-                uploaded_files.append(filepath)
+        # Save and load image
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(session_folder, filename)
+        file.save(filepath)
+        image = cv2.imread(filepath)
+        if image is None:
+            shutil.rmtree(session_folder)
+            return jsonify({'error': 'Could not read image file'}), 400
         
-        if not uploaded_files:
-            return jsonify({'error': 'No valid image files found'}), 400
-        
-        # Create augmenter
         augmenter = ImageAugmenter(augmentations)
+        augmented_images = augmenter.create_augmentations(image)
         
-        # Create augmented folder
+        # Create folder to store images for zipping
         aug_folder = os.path.join(session_folder, "augmented")
         os.makedirs(aug_folder, exist_ok=True)
         
-        # Process each image
-        for img_path in uploaded_files:
-            image = cv2.imread(img_path)
-            if image is None:
-                continue
-            
-            base_name = os.path.basename(img_path)
-            name_without_ext = os.path.splitext(base_name)[0]
-            
-            # Generate augmentations
-            augmented_images = augmenter.create_augmentations(image)
-            
-            for aug_name, aug_image in augmented_images:
-                aug_img_path = os.path.join(aug_folder, f"{name_without_ext}_{aug_name}.jpg")
-                cv2.imwrite(aug_img_path, aug_image)
+        name_without_ext, _ = os.path.splitext(filename)
+        cv2.imwrite(os.path.join(aug_folder, f"{name_without_ext}_original.jpg"), image)
+        for aug_name, aug_image in augmented_images:
+            cv2.imwrite(os.path.join(aug_folder, f"{name_without_ext}_{aug_name}.jpg"), aug_image)
         
-        # Create zip file
+        # Prepare data for JSON response (base64 for display)
+        results = [{'name': aug_name, 'image': image_to_base64(aug_image)} for aug_name, aug_image in augmented_images]
+        original_b64 = image_to_base64(image)
+        
+        # Clean up the initial uploaded file, as it's now saved in the 'augmented' folder
+        os.remove(filepath)
+        
+        return jsonify({
+            'original': original_b64,
+            'augmented': results,
+            'session_id': session_id  # Crucial for the "Download All" button
+        })
+        
+    except Exception as e:
+        if session_folder and os.path.exists(session_folder):
+            shutil.rmtree(session_folder)
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/download-zip/<session_id>', methods=['GET'])
+def download_zip(session_id):
+    """Creates a zip from a session's augmented images and sends it."""
+    try:
+        session_folder = os.path.join(SESSIONS_FOLDER, secure_filename(session_id))
+        if not os.path.isdir(session_folder):
+            return jsonify({'error': 'Session not found or has expired.'}), 404
+        
+        aug_folder = os.path.join(session_folder, "augmented")
+        zip_filename = f"augmented_images_{session_id}.zip"
+        zip_path = os.path.join(session_folder, zip_filename)
+
+        with zipfile.ZipFile(zip_path, 'w') as zipf:
+            for file in os.listdir(aug_folder):
+                zipf.write(os.path.join(aug_folder, file), file)
+
+        @after_this_request
+        def cleanup(response):
+            try:
+                shutil.rmtree(session_folder)
+            except Exception as e:
+                app.logger.error(f"Error cleaning up session folder {session_folder}: {e}")
+            return response
+
+        return send_file(zip_path, as_attachment=True, download_name=zip_filename)
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/batch-augment', methods=['POST'])
+def batch_augment():
+    """Process multiple images and return as downloadable zip"""
+    session_folder = None
+    try:
+        files = request.files.getlist('images')
+        if not files or all(f.filename == '' for f in files):
+            return jsonify({'error': 'No files selected'}), 400
+        
+        augmentations = request.form.getlist('augmentations')
+        if not augmentations:
+            return jsonify({'error': 'No augmentations selected'}), 400
+        
+        session_id = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+        session_folder = os.path.join(SESSIONS_FOLDER, session_id)
+        aug_folder = os.path.join(session_folder, "augmented")
+        os.makedirs(aug_folder, exist_ok=True)
+        
+        augmenter = ImageAugmenter(augmentations)
+        
+        for file in files:
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                
+                # Read image directly from file stream
+                filestr = file.read()
+                npimg = np.frombuffer(filestr, np.uint8)
+                image = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
+
+                if image is None: continue
+            
+                name_without_ext = os.path.splitext(filename)[0]
+                augmented_images = augmenter.create_augmentations(image)
+                
+                for aug_name, aug_image in augmented_images:
+                    aug_img_path = os.path.join(aug_folder, f"{name_without_ext}_{aug_name}.jpg")
+                    cv2.imwrite(aug_img_path, aug_image)
+        
         zip_path = os.path.join(session_folder, f"augmented_images_{session_id}.zip")
         with zipfile.ZipFile(zip_path, 'w') as zipf:
-            for root, dirs, files in os.walk(aug_folder):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    arcname = os.path.relpath(file_path, aug_folder)
-                    zipf.write(file_path, arcname)
-        
+             for file in os.listdir(aug_folder):
+                zipf.write(os.path.join(aug_folder, file), file)
+
+        @after_this_request
+        def cleanup(response):
+            try:
+                shutil.rmtree(session_folder)
+            except Exception as e:
+                app.logger.error(f"Error cleaning up batch session folder {session_folder}: {e}")
+            return response
+
         return send_file(zip_path, as_attachment=True, download_name=f"augmented_images_{session_id}.zip")
         
     except Exception as e:
+        if session_folder and os.path.exists(session_folder):
+            shutil.rmtree(session_folder)
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
