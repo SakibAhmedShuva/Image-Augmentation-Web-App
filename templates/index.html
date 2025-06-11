@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Image Augmentation Studio</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .main-content {
+            background: white;
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .upload-section {
+            margin-bottom: 40px;
+        }
+
+        .upload-area {
+            border: 3px dashed #e0e7ff;
+            border-radius: 16px;
+            padding: 60px 20px;
+            text-align: center;
+            background: linear-gradient(135deg, #f8faff 0%, #f1f5ff 100%);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-area:hover {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #f0f4ff 0%, #e8f0ff 100%);
+            transform: translateY(-2px);
+        }
+
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #e8f0ff 0%, #dce8ff 100%);
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 4rem;
+            color: #667eea;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .upload-text {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        .upload-subtext {
+            color: #6b7280;
+            font-size: 0.95rem;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .selected-files {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8faff;
+            border-radius: 12px;
+            border: 1px solid #e0e7ff;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .file-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .file-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+
+        .remove-file {
+            background: #fee2e2;
+            color: #dc2626;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+        }
+
+        .remove-file:hover {
+            background: #fecaca;
+        }
+
+        .augmentation-section {
+            margin-bottom: 40px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .augmentation-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .augmentation-card {
+            background: #f8faff;
+            border: 2px solid #e0e7ff;
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .augmentation-card:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+        }
+
+        .augmentation-card.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #e8f0ff 0%, #dce8ff 100%);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.2);
+        }
+
+        .augmentation-card input[type="checkbox"] {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 20px;
+            height: 20px;
+            accent-color: #667eea;
+        }
+
+        .augmentation-name {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 8px;
+            font-size: 1.1rem;
+        }
+
+        .augmentation-description {
+            color: #6b7280;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .control-buttons {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+            border: 2px solid #d1d5db;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+            border-color: #9ca3af;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid #e0e7ff;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+        }
+
+        .results.active {
+            display: block;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 24px;
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .result-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 35px rgba(0,0,0,0.15);
+        }
+
+        .result-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .result-info {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .result-title {
+            font-weight: 600;
+            color: #1f2937;
+            text-transform: capitalize;
+        }
+
+        .download-btn {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+        }
+
+        .error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .error.active {
+            display: block;
+        }
+
+        .mode-toggle {
+            display: flex;
+            background: #f3f4f6;
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 30px;
+            width: fit-content;
+        }
+
+        .mode-btn {
+            padding: 12px 24px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .mode-btn.active {
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            color: #667eea;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+            
+            .main-content {
+                padding: 24px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .augmentation-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .control-buttons {
+                justify-content: center;
+            }
+            
+            .btn {
+                flex: 1;
+                min-width: 140px;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 AI Image Augmentation Studio</h1>
+            <p>Transform your images with advanced AI-powered augmentation techniques for damage detection and analysis</p>
+        </div>
+
+        <div class="main-content">
+            <div class="mode-toggle">
+                <button class="mode-btn active" id="single-mode-btn">Single Image</button>
+                <button class="mode-btn" id="batch-mode-btn">Batch Processing</button>
+            </div>
+
+            <div class="error" id="error-message"></div>
+
+            <div class="upload-section">
+                <h2 class="section-title">
+                    📁 Upload Images
+                </h2>
+                <div class="upload-area" id="upload-area">
+                    <div class="upload-icon">📸</div>
+                    <div class="upload-text">Drag & drop your image here</div>
+                    <div class="upload-subtext">or click to browse • JPG, PNG, GIF up to 16MB</div>
+                    <input type="file" id="file-input" class="file-input" accept="image/*">
+                </div>
+                <div class="selected-files" id="selected-files-container" style="display: none;"></div>
+            </div>
+
+            <div class="augmentation-section">
+                <h2 class="section-title">
+                    ⚡ Select Augmentations
+                </h2>
+                <div class="augmentation-grid" id="augmentation-grid">
+                    <!-- Augmentation cards will be dynamically inserted here -->
+                </div>
+            </div>
+
+            <div class="control-buttons">
+                 <button class="btn btn-primary" id="process-btn" disabled>Generate Augmentations</button>
+                 <button class="btn btn-secondary" id="clear-btn" disabled>Clear</button>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Augmenting your images... this may take a moment.</p>
+            </div>
+
+            <div class="results" id="results">
+                <h2 class="section-title">✨ Results</h2>
+                <div class="results-grid" id="results-grid">
+                    <!-- Result cards will be dynamically inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DOM Elements ---
+        const singleModeBtn = document.getElementById('single-mode-btn');
+        const batchModeBtn = document.getElementById('batch-mode-btn');
+        const uploadArea = document.getElementById('upload-area');
+        const uploadText = document.querySelector('.upload-text');
+        const fileInput = document.getElementById('file-input');
+        const selectedFilesContainer = document.getElementById('selected-files-container');
+        const augmentationGrid = document.getElementById('augmentation-grid');
+        const processBtn = document.getElementById('process-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const loadingIndicator = document.getElementById('loading');
+        const resultsContainer = document.getElementById('results');
+        const resultsGrid = document.getElementById('results-grid');
+        const errorMessage = document.getElementById('error-message');
+
+        // --- State ---
+        let state = {
+            mode: 'single', // 'single' or 'batch'
+            selectedFiles: [], // Array of File objects
+            availableAugmentations: [],
+        };
+
+        // --- Initialization ---
+        const init = () => {
+            fetchAugmentations();
+            setupEventListeners();
+            updateUIForMode();
+        };
+
+        const fetchAugmentations = async () => {
+            try {
+                const response = await fetch('/api/augmentations');
+                if (!response.ok) throw new Error('Failed to load augmentations');
+                state.availableAugmentations = await response.json();
+                renderAugmentationCards();
+            } catch (error) {
+                showError('Could not fetch augmentation options. Please refresh the page.');
+                console.error(error);
+            }
+        };
+
+        // --- UI Rendering ---
+        const renderAugmentationCards = () => {
+            augmentationGrid.innerHTML = '';
+            state.availableAugmentations.forEach(aug => {
+                const card = document.createElement('div');
+                card.className = 'augmentation-card';
+                card.dataset.augId = aug.id;
+                card.innerHTML = `
+                    <input type="checkbox" name="augmentations" value="${aug.id}" id="aug-${aug.id}">
+                    <label for="aug-${aug.id}" style="display: block; cursor: pointer;">
+                        <div class="augmentation-name">${aug.name}</div>
+                        <div class="augmentation-description">${aug.description}</div>
+                    </label>
+                `;
+                augmentationGrid.appendChild(card);
+            });
+        };
+
+        const updateSelectedFilesUI = () => {
+            if (state.selectedFiles.length === 0) {
+                selectedFilesContainer.style.display = 'none';
+                return;
+            }
+            selectedFilesContainer.style.display = 'block';
+            selectedFilesContainer.innerHTML = '';
+            state.selectedFiles.forEach(file => {
+                const ext = file.name.split('.').pop().toUpperCase().substring(0, 3);
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <div class="file-info">
+                        <div class="file-icon">${ext}</div>
+                        <span>${file.name}</span>
+                    </div>
+                    <button class="remove-file" data-filename="${file.name}">Remove</button>
+                `;
+                selectedFilesContainer.appendChild(fileItem);
+            });
+        };
+
+        const updateUIForMode = () => {
+            clearAll(); // Reset state when switching modes
+            if (state.mode === 'single') {
+                singleModeBtn.classList.add('active');
+                batchModeBtn.classList.remove('active');
+                fileInput.multiple = false;
+                processBtn.textContent = 'Generate Augmentations';
+                uploadText.textContent = 'Drag & drop your image here';
+            } else {
+                batchModeBtn.classList.add('active');
+                singleModeBtn.classList.remove('active');
+                fileInput.multiple = true;
+                processBtn.textContent = 'Generate & Download ZIP';
+                uploadText.textContent = 'Drag & drop your images here';
+            }
+        };
+
+        const displaySingleImageResults = (data) => {
+            resultsGrid.innerHTML = '';
+            
+            // Original Image
+            const originalCard = createResultCard('Original', data.original, false);
+            resultsGrid.appendChild(originalCard);
+            
+            // Augmented Images
+            data.augmented.forEach(aug => {
+                const augCard = createResultCard(aug.name.replace(/_/g, ' '), aug.image, true);
+                resultsGrid.appendChild(augCard);
+            });
+
+            resultsContainer.classList.add('active');
+        };
+
+        const createResultCard = (title, imageSrc, isDownloadable) => {
+            const card = document.createElement('div');
+            card.className = 'result-card';
+            card.innerHTML = `
+                <img src="${imageSrc}" alt="${title}" class="result-image">
+                <div class="result-info">
+                    <span class="result-title">${title}</span>
+                    ${isDownloadable ? `<button class="download-btn" data-src="${imageSrc}" data-name="${title.replace(/\s+/g, '_')}.jpg">Download</button>` : ''}
+                </div>
+            `;
+            return card;
+        };
+
+        // --- Event Handlers ---
+        const setupEventListeners = () => {
+            singleModeBtn.addEventListener('click', () => {
+                state.mode = 'single';
+                updateUIForMode();
+            });
+
+            batchModeBtn.addEventListener('click', () => {
+                state.mode = 'batch';
+                updateUIForMode();
+            });
+
+            uploadArea.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+            // Drag and Drop
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, preventDefaults, false);
+            });
+            ['dragenter', 'dragover'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, () => uploadArea.classList.add('dragover'), false);
+            });
+            ['dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('dragover'), false);
+            });
+            uploadArea.addEventListener('drop', (e) => handleFiles(e.dataTransfer.files));
+
+            // Card and checkbox selection
+            augmentationGrid.addEventListener('click', (e) => {
+                const card = e.target.closest('.augmentation-card');
+                if (card) {
+                    const checkbox = card.querySelector('input[type="checkbox"]');
+                    if (e.target.tagName !== 'INPUT') {
+                        checkbox.checked = !checkbox.checked;
+                    }
+                    card.classList.toggle('selected', checkbox.checked);
+                    updateButtonStates();
+                }
+            });
+
+            selectedFilesContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('remove-file')) {
+                    removeFile(e.target.dataset.filename);
+                }
+            });
+            
+            resultsGrid.addEventListener('click', (e) => {
+                if (e.target.classList.contains('download-btn')) {
+                    const btn = e.target;
+                    downloadBase64Image(btn.dataset.src, btn.dataset.name);
+                }
+            });
+
+            processBtn.addEventListener('click', processImages);
+            clearBtn.addEventListener('click', clearAll);
+        };
+        
+        const preventDefaults = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        };
+
+        const handleFiles = (files) => {
+            hideError();
+            const newFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+
+            if (state.mode === 'single') {
+                state.selectedFiles = newFiles.length > 0 ? [newFiles[0]] : [];
+            } else {
+                // Prevent duplicates
+                newFiles.forEach(newFile => {
+                    if (!state.selectedFiles.some(existingFile => existingFile.name === newFile.name)) {
+                        state.selectedFiles.push(newFile);
+                    }
+                });
+            }
+            updateSelectedFilesUI();
+            updateButtonStates();
+        };
+
+        const removeFile = (filename) => {
+            state.selectedFiles = state.selectedFiles.filter(f => f.name !== filename);
+            updateSelectedFilesUI();
+            updateButtonStates();
+        };
+        
+        const processImages = async () => {
+            const selectedAugmentations = getSelectedAugmentations();
+            if (state.selectedFiles.length === 0 || selectedAugmentations.length === 0) {
+                showError('Please select at least one image and one augmentation.');
+                return;
+            }
+            hideError();
+            showLoading(true);
+            resultsContainer.classList.remove('active');
+
+            const formData = new FormData();
+            selectedAugmentations.forEach(aug => formData.append('augmentations', aug));
+            
+            try {
+                if (state.mode === 'single') {
+                    formData.append('image', state.selectedFiles[0]);
+                    const response = await fetch('/api/augment', { method: 'POST', body: formData });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error || 'An unknown error occurred.');
+                    displaySingleImageResults(data);
+                } else { // Batch mode
+                    state.selectedFiles.forEach(file => formData.append('images', file));
+                    const response = await fetch('/api/batch-augment', { method: 'POST', body: formData });
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Batch processing failed.');
+                    }
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = response.headers.get('Content-Disposition')?.split('filename=')[1] || 'augmented_images.zip';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                }
+            } catch (error) {
+                showError(error.message);
+                console.error('Processing error:', error);
+            } finally {
+                showLoading(false);
+            }
+        };
+
+        // --- Utility Functions ---
+        const updateButtonStates = () => {
+            const hasFiles = state.selectedFiles.length > 0;
+            const hasAugmentations = getSelectedAugmentations().length > 0;
+            processBtn.disabled = !hasFiles || !hasAugmentations;
+            clearBtn.disabled = !hasFiles && !hasAugmentations;
+        };
+        
+        const getSelectedAugmentations = () => {
+            return Array.from(augmentationGrid.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+        };
+
+        const showLoading = (isLoading) => {
+            loadingIndicator.classList.toggle('active', isLoading);
+        };
+        
+        const showError = (message) => {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('active');
+        };
+
+        const hideError = () => {
+            errorMessage.classList.remove('active');
+        };
+
+        const clearAll = () => {
+            state.selectedFiles = [];
+            fileInput.value = ''; // Reset file input
+            updateSelectedFilesUI();
+            
+            // Uncheck all augmentations
+            augmentationGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+            augmentationGrid.querySelectorAll('.augmentation-card').forEach(card => card.classList.remove('selected'));
+            
+            resultsContainer.classList.remove('active');
+            resultsGrid.innerHTML = '';
+            hideError();
+            showLoading(false);
+            updateButtonStates();
+        };
+
+        const downloadBase64Image = (base64Data, filename) => {
+            const a = document.createElement("a");
+            a.href = base64Data;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        };
+
+        // --- Start the App ---
+        init();
+    });
+    </script>
+
+</body>
+</html>
