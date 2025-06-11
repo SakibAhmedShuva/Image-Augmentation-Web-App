@@ -168,6 +168,7 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
+            gap: 16px;
         }
 
         .section-title {
@@ -424,6 +425,10 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             color: #667eea;
         }
+        
+        .hidden {
+            display: none !important;
+        }
 
         @media (max-width: 768px) {
             .container {
@@ -505,7 +510,10 @@
             </div>
 
             <div class="results" id="results">
-                <h2 class="section-title">✨ Results</h2>
+                <div class="section-header">
+                    <h2 class="section-title">✨ Results</h2>
+                    <button class="btn btn-secondary hidden" id="download-all-btn">Download All</button>
+                </div>
                 <div class="results-grid" id="results-grid">
                     <!-- Result cards will be dynamically inserted here -->
                 </div>
@@ -530,12 +538,14 @@
         const resultsContainer = document.getElementById('results');
         const resultsGrid = document.getElementById('results-grid');
         const errorMessage = document.getElementById('error-message');
+        const downloadAllBtn = document.getElementById('download-all-btn');
 
         // --- State ---
         let state = {
             mode: 'single', // 'single' or 'batch'
             selectedFiles: [], // Array of File objects
             availableAugmentations: [],
+            sessionId: null,
         };
 
         // --- Initialization ---
@@ -617,6 +627,14 @@
 
         const displaySingleImageResults = (data) => {
             resultsGrid.innerHTML = '';
+
+            // Check for session_id to enable Download All button
+            if (data.session_id) {
+                state.sessionId = data.session_id;
+                downloadAllBtn.classList.remove('hidden');
+            } else {
+                downloadAllBtn.classList.add('hidden');
+            }
             
             // Original Image
             const originalCard = createResultCard('Original', data.original, false);
@@ -646,39 +664,21 @@
 
         // --- Event Handlers ---
         const setupEventListeners = () => {
-            singleModeBtn.addEventListener('click', () => {
-                state.mode = 'single';
-                updateUIForMode();
-            });
-
-            batchModeBtn.addEventListener('click', () => {
-                state.mode = 'batch';
-                updateUIForMode();
-            });
-
+            singleModeBtn.addEventListener('click', () => { state.mode = 'single'; updateUIForMode(); });
+            batchModeBtn.addEventListener('click', () => { state.mode = 'batch'; updateUIForMode(); });
             uploadArea.addEventListener('click', () => fileInput.click());
             fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
-
-            // Drag and Drop
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                uploadArea.addEventListener(eventName, preventDefaults, false);
-            });
-            ['dragenter', 'dragover'].forEach(eventName => {
-                uploadArea.addEventListener(eventName, () => uploadArea.classList.add('dragover'), false);
-            });
-            ['dragleave', 'drop'].forEach(eventName => {
-                uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('dragover'), false);
-            });
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => uploadArea.addEventListener(eventName, preventDefaults, false));
+            ['dragenter', 'dragover'].forEach(eventName => uploadArea.addEventListener(eventName, () => uploadArea.classList.add('dragover'), false));
+            ['dragleave', 'drop'].forEach(eventName => uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('dragover'), false));
             uploadArea.addEventListener('drop', (e) => handleFiles(e.dataTransfer.files));
 
-            // Card and checkbox selection
             augmentationGrid.addEventListener('click', (e) => {
                 const card = e.target.closest('.augmentation-card');
                 if (card) {
                     const checkbox = card.querySelector('input[type="checkbox"]');
-                    if (e.target.tagName !== 'INPUT') {
-                        checkbox.checked = !checkbox.checked;
-                    }
+                    if (e.target.tagName !== 'INPUT') checkbox.checked = !checkbox.checked;
                     card.classList.toggle('selected', checkbox.checked);
                     updateButtonStates();
                     updateSelectAllButtonText();
@@ -688,9 +688,7 @@
             selectAllBtn.addEventListener('click', toggleSelectAllAugmentations);
 
             selectedFilesContainer.addEventListener('click', (e) => {
-                if (e.target.classList.contains('remove-file')) {
-                    removeFile(e.target.dataset.filename);
-                }
+                if (e.target.classList.contains('remove-file')) removeFile(e.target.dataset.filename);
             });
             
             resultsGrid.addEventListener('click', (e) => {
@@ -700,27 +698,24 @@
                 }
             });
 
+            downloadAllBtn.addEventListener('click', () => {
+                if (state.sessionId) window.location.href = `/api/download-zip/${state.sessionId}`;
+            });
+
             processBtn.addEventListener('click', processImages);
             clearBtn.addEventListener('click', clearAll);
         };
         
-        const preventDefaults = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-        };
+        const preventDefaults = (e) => { e.preventDefault(); e.stopPropagation(); };
 
         const handleFiles = (files) => {
             hideError();
             const newFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
-
             if (state.mode === 'single') {
                 state.selectedFiles = newFiles.length > 0 ? [newFiles[0]] : [];
             } else {
-                // Prevent duplicates
                 newFiles.forEach(newFile => {
-                    if (!state.selectedFiles.some(existingFile => existingFile.name === newFile.name)) {
-                        state.selectedFiles.push(newFile);
-                    }
+                    if (!state.selectedFiles.some(f => f.name === newFile.name)) state.selectedFiles.push(newFile);
                 });
             }
             updateSelectedFilesUI();
@@ -780,6 +775,7 @@
         };
 
         // --- Utility Functions ---
+        const getSelectedAugmentations = () => Array.from(augmentationGrid.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
         const updateButtonStates = () => {
             const hasFiles = state.selectedFiles.length > 0;
             const hasAugmentations = getSelectedAugmentations().length > 0;
@@ -789,60 +785,42 @@
 
         const updateSelectAllButtonText = () => {
             const allCheckboxes = augmentationGrid.querySelectorAll('input[type="checkbox"]');
-            if (allCheckboxes.length === 0) {
-                selectAllBtn.textContent = 'Select All';
-                return;
-            }
-            const areAllSelected = Array.from(allCheckboxes).every(cb => cb.checked);
-            selectAllBtn.textContent = areAllSelected ? 'Deselect All' : 'Select All';
+            if (allCheckboxes.length === 0) return;
+            const allSelected = Array.from(allCheckboxes).every(cb => cb.checked);
+            selectAllBtn.textContent = allSelected ? 'Deselect All' : 'Select All';
         };
 
         const toggleSelectAllAugmentations = () => {
             const allCheckboxes = augmentationGrid.querySelectorAll('input[type="checkbox"]');
             const shouldSelect = !Array.from(allCheckboxes).every(cb => cb.checked);
-
             allCheckboxes.forEach(checkbox => {
                 checkbox.checked = shouldSelect;
-                const card = checkbox.closest('.augmentation-card');
-                if (card) {
-                    card.classList.toggle('selected', shouldSelect);
-                }
+                checkbox.closest('.augmentation-card').classList.toggle('selected', shouldSelect);
             });
-            
             updateButtonStates();
             updateSelectAllButtonText();
         };
         
-        const getSelectedAugmentations = () => {
-            return Array.from(augmentationGrid.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-        };
-
-        const showLoading = (isLoading) => {
-            loadingIndicator.classList.toggle('active', isLoading);
-        };
-        
-        const showError = (message) => {
-            errorMessage.textContent = message;
-            errorMessage.classList.add('active');
-        };
-
-        const hideError = () => {
-            errorMessage.classList.remove('active');
-        };
+        const showLoading = (isLoading) => loadingIndicator.classList.toggle('active', isLoading);
+        const showError = (message) => { errorMessage.textContent = message; errorMessage.classList.add('active'); };
+        const hideError = () => errorMessage.classList.remove('active');
 
         const clearAll = () => {
             state.selectedFiles = [];
-            fileInput.value = ''; // Reset file input
+            fileInput.value = '';
             updateSelectedFilesUI();
             
-            // Uncheck all augmentations
-            augmentationGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
-            augmentationGrid.querySelectorAll('.augmentation-card').forEach(card => card.classList.remove('selected'));
+            augmentationGrid.querySelectorAll('input:checked').forEach(cb => cb.checked = false);
+            augmentationGrid.querySelectorAll('.selected').forEach(card => card.classList.remove('selected'));
             
             resultsContainer.classList.remove('active');
             resultsGrid.innerHTML = '';
             hideError();
             showLoading(false);
+            
+            state.sessionId = null;
+            downloadAllBtn.classList.add('hidden');
+
             updateButtonStates();
             updateSelectAllButtonText();
         };
