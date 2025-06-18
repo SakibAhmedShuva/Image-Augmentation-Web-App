@@ -48,10 +48,15 @@ Powered by **Albumentations**, featuring:
 ## 🎯 Demo
 
 ### Single Image Processing
-![Single Mode Demo](https://via.placeholder.com/800x400/4CAF50/white?text=Single+Image+Processing+Demo)
 
-### Batch Processing
-![Batch Mode Demo](https://via.placeholder.com/800x400/2196F3/white?text=Batch+Processing+Demo)
+![image](https://github.com/user-attachments/assets/2e24cbe8-c2d5-4841-958f-a8e0db4ddfe8)
+
+
+![image](https://github.com/user-attachments/assets/bb8176f5-89cf-49d2-80c8-d51c2b1c339e)
+
+
+![image](https://github.com/user-attachments/assets/c0067f96-89f3-400a-a362-8796aba15b6e)
+
 
 ---
 
